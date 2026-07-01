@@ -1,0 +1,497 @@
+{
+  "name": "Student Raw Data Converter",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "student form",
+        "formDescription": "Upload the student form",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "upload here",
+              "fieldType": "file"
+            }
+          ]
+        },
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.6,
+      "position": [
+        0,
+        0
+      ],
+      "id": "87a3056d-0513-4dcb-9c01-43c4ef7ba9fd",
+      "name": "On form submission",
+      "webhookId": "dab8db3f-2122-43d3-b16b-998d6aec91a2"
+    },
+    {
+      "parameters": {
+        "binaryPropertyName": "upload_here",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        416,
+        -16
+      ],
+      "id": "49153516-686f-4feb-9867-3107a6c004c9",
+      "name": "Extract from File"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Clean this student enrollment row and return ONLY a JSON object.\nRow data: {{ JSON.stringify($json) }}\nRules:\n- Name: Title Case\n- Email: if invalid (no @ or no .com/.in) set INVALID_EMAIL\n- Phone: if less than 10 digits or empty set MISSING\n- Course: only Python or Machine Learning or Data Science\n- Fee_Paid: yes/YES = true, no/NO = false\n- City: Title Case, empty = UNKNOWN\n- Enrolled_Date: YYYY-MM-DD format\nReturn ONLY raw JSON. No explanation. No markdown.",
+        "hasOutputParser": true,
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        640,
+        -16
+      ],
+      "id": "a3198f29-fe29-4da6-af57-fb88717f77e2",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        560,
+        208
+      ],
+      "id": "cc3f7f76-e633-46b0-a7d9-14b1cfc312d5",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "M3yrV7pPDYuBkecs",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Loop through all 50 incoming items from the AI node\nfor (const item of $input.all()) {\n  \n  // 1. Check if the AI node provided a text string\n  if (item.json && item.json.text) {\n    try {\n      // Parse the JSON string hidden inside the text property\n      const parsedData = JSON.parse(item.json.text);\n      \n      // 2. Data Cleaning Rules\n      let cleanEmail = parsedData.Email;\n      if (cleanEmail && (cleanEmail.toUpperCase() === 'INVALID_EMAIL' || !cleanEmail.includes('@'))) {\n        cleanEmail = \"\"; // Clear out the invalid email text so your CSV stays clean\n      }\n\n      // Convert boolean true/false to a clean \"Yes\" or \"No\" for the CSV\n      let cleanFee = parsedData.Fee_Paid;\n      if (cleanFee === true || String(cleanFee).toLowerCase() === 'yes') {\n        cleanFee = 'Yes';\n      } else if (cleanFee === false || String(cleanFee).toLowerCase() === 'no') {\n        cleanFee = 'No';\n      }\n\n      // 3. Reassign the root JSON structure to our clean fields\n      item.json = {\n        Student_ID: parsedData.Student_ID || \"\",\n        Name: parsedData.Name || \"\",\n        Email: cleanEmail,\n        Phone: parsedData.Phone || \"\",\n        Course: parsedData.Course || \"\",\n        Fee_Paid: cleanFee,\n        City: parsedData.City || \"\",\n        Enrolled_Date: parsedData.Enrolled_Date || \"\"\n      };\n\n    } catch (error) {\n      // In case an item fails to parse, leave it as is or log it\n      console.error(\"Failed to parse row JSON string:\", error);\n    }\n  }\n}\n\n// Return all 50 parsed and cleaned items to the next node\nreturn $input.all();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1456,
+        0
+      ],
+      "id": "db0249b8-6746-4658-8d3a-b6877521b242",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "81184df7-56c1-497a-bb55-62740d66f52c",
+              "leftValue": "={{ $json.City }}",
+              "rightValue": "Chennai",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1440,
+        -160
+      ],
+      "id": "79f12b6f-407f-4fa5-b739-66a21591731a",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json['upload here'] }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "array",
+                      "operation": "notEmpty",
+                      "singleValue": true
+                    },
+                    "id": "8e013177-92f5-46a4-b7b1-7401154fbcf3"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "5d921afe-290a-4ced-8092-e764643e3d84",
+                    "leftValue": "={{ $json['upload here'] }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "array",
+                      "operation": "empty",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        208,
+        0
+      ],
+      "id": "22500ad6-f25f-424d-9601-b43d389fbc09",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "operation": "xlsx",
+        "options": {
+          "fileName": "Chennai_valid_Email"
+        }
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        2272,
+        -192
+      ],
+      "id": "53b188d2-33fd-48a6-9226-8d91f5f2a6c7",
+      "name": "Convert to File"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "991152f2-d0cf-44d9-bc54-c7052e1647c6",
+              "leftValue": "={{ $json.Email }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1840,
+        -176
+      ],
+      "id": "38820565-4617-478a-9f8d-b2d53d05c36a",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "operation": "xlsx",
+        "options": {
+          "fileName": "Chennai_Invalid_Email"
+        }
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        2272,
+        -32
+      ],
+      "id": "45ebf6b8-41ee-479d-863b-cd5947c177ac",
+      "name": "Convert to File1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "eaae6238-895a-4b76-8d32-39be4d84e13f",
+              "leftValue": "={{ $json.Email }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1840,
+        0
+      ],
+      "id": "3be39b7b-89a2-4258-819c-b3038f5e277b",
+      "name": "If2"
+    },
+    {
+      "parameters": {
+        "operation": "xlsx",
+        "options": {
+          "fileName": "Others_Invalid_Email"
+        }
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        2272,
+        176
+      ],
+      "id": "0305cfd0-9953-460b-824f-8b4b83cd4120",
+      "name": "Convert to File2"
+    },
+    {
+      "parameters": {
+        "operation": "xlsx",
+        "options": {
+          "fileName": "Others_Valid_Email"
+        }
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        2288,
+        384
+      ],
+      "id": "94ce6ffe-4c04-458d-be5e-b4e5c2bbcd83",
+      "name": "Convert to File3"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1024,
+        -16
+      ],
+      "id": "2c145a83-2034-4ad9-9d81-ebe067d5d35f",
+      "name": "Loop Over Items"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "On form submission": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "If2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Convert to File",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Convert to File1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If2": {
+      "main": [
+        [
+          {
+            "node": "Convert to File2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Convert to File3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "76b4531d-756b-4906-be4d-08a46af52fed",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "7d49c455777b5dc3b865cb6c1a94a4a27d3b443583624bc2a4289dfee7aabc3a"
+  },
+  "nodeGroups": [],
+  "id": "LqheiswUEXDyRhkN",
+  "tags": []
+}
